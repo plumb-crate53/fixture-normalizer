@@ -60,6 +60,12 @@ outside the US are written. There's no reliable way to tell day-first from
 month-first apart from context, so this is a documented assumption rather
 than something the parser guesses at.
 
+## Running the tests
+
+```
+python -m unittest discover
+```
+
 ## Status
 
 Early skeleton. The parsing rules cover the formats I've actually run into
