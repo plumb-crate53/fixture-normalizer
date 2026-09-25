@@ -15,6 +15,12 @@ def main(argv: list[str] | None = None) -> int:
         nargs="?",
         help="file with one fixture per line; reads stdin if omitted",
     )
+    parser.add_argument(
+        "--month-first",
+        action="store_true",
+        help="treat ambiguous numeric dates (e.g. 12/09/2026) as month-first "
+        "instead of the default day-first",
+    )
     args = parser.parse_args(argv)
 
     lines = _read_lines(args.path)
@@ -24,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
         if not line.strip():
             continue
         try:
-            fixture = parse_fixture(line)
+            fixture = parse_fixture(line, month_first=args.month_first)
         except FixtureFormatError as exc:
             print(f"skip: {exc}", file=sys.stderr)
             exit_code = 1

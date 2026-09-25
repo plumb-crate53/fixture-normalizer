@@ -82,6 +82,31 @@ class DateParsingTests(unittest.TestCase):
     def test_no_date_returns_none(self):
         self.assertIsNone(_parse_date("no date here"))
 
+    def test_month_first_flag_swaps_numeric_slash_date(self):
+        self.assertEqual(
+            _parse_date("09/12/2026", month_first=True), date(2026, 9, 12)
+        )
+
+    def test_month_first_flag_swaps_numeric_dot_date(self):
+        self.assertEqual(
+            _parse_date("09.12.2026", month_first=True), date(2026, 9, 12)
+        )
+
+    def test_month_first_flag_does_not_affect_iso_date(self):
+        self.assertEqual(
+            _parse_date("2026-09-12", month_first=True), date(2026, 9, 12)
+        )
+
+    def test_month_first_flag_does_not_affect_month_name_date(self):
+        self.assertEqual(
+            _parse_date("12 Sept 2026", month_first=True), date(2026, 9, 12)
+        )
+
+    def test_month_first_flag_invalid_calendar_date_returns_none(self):
+        # With month_first, "13/09/2026" would need a 13th month, so no
+        # pattern produces a valid date and this falls through to None.
+        self.assertIsNone(_parse_date("13/09/2026", month_first=True))
+
 
 class TimeParsingTests(unittest.TestCase):
     def test_hour_with_pm(self):
@@ -150,6 +175,14 @@ class FixtureIntegrationTests(unittest.TestCase):
         f = Fixture(home="Arsenal", away="Chelsea", kickoff_date=None, kickoff_time=None)
         self.assertEqual(f.to_string(), "Arsenal vs Chelsea")
 
+    def test_month_first_flag_on_full_fixture_line(self):
+        f = parse_fixture("Arsenal vs Chelsea, 09/12/2026 3pm", month_first=True)
+        self.assertEqual(f.kickoff_date, date(2026, 9, 12))
+
+    def test_month_first_flag_defaults_to_day_first(self):
+        f = parse_fixture("Arsenal vs Chelsea, 09/12/2026 3pm")
+        self.assertEqual(f.kickoff_date, date(2026, 12, 9))
+
     def test_to_csv_row(self):
         f = parse_fixture("Man Utd vs Chelsea, 12/09/2026 3pm")
         self.assertEqual(
@@ -170,6 +203,12 @@ class FormatManyTests(unittest.TestCase):
         self.assertEqual(len(fixtures), 2)
         self.assertEqual(fixtures[0].away, "Tottenham Hotspur")
         self.assertEqual(fixtures[1].home, "Newcastle United")
+
+    def test_month_first_flag_is_passed_through(self):
+        fixtures = format_many(
+            ["Arsenal vs Chelsea, 09/12/2026 3pm"], month_first=True
+        )
+        self.assertEqual(fixtures[0].kickoff_date, date(2026, 9, 12))
 
 
 if __name__ == "__main__":

@@ -33,17 +33,24 @@ _SEPARATORS = re.compile(r"\s+(?:vs\.?|v\.?|@|at)\s+", re.IGNORECASE)
 _TEAM_BREAK = re.compile(r",|\s[-—]\s")
 
 _DATE_PATTERNS = [
-    re.compile(r"(?P<y>\d{4})-(?P<m>\d{1,2})-(?P<d>\d{1,2})"),
-    re.compile(
-        r"(?P<d>\d{1,2})(?:st|nd|rd|th)?\s+(?P<mon>[A-Za-z]+)\.?,?\s+(?P<y>\d{2,4})"
+    (re.compile(r"(?P<y>\d{4})-(?P<m>\d{1,2})-(?P<d>\d{1,2})"), False),
+    (
+        re.compile(
+            r"(?P<d>\d{1,2})(?:st|nd|rd|th)?\s+(?P<mon>[A-Za-z]+)\.?,?\s+(?P<y>\d{2,4})"
+        ),
+        False,
     ),
-    re.compile(
-        r"(?P<mon>[A-Za-z]+)\.?\s+(?P<d>\d{1,2})(?:st|nd|rd|th)?,?\s+(?P<y>\d{2,4})"
+    (
+        re.compile(
+            r"(?P<mon>[A-Za-z]+)\.?\s+(?P<d>\d{1,2})(?:st|nd|rd|th)?,?\s+(?P<y>\d{2,4})"
+        ),
+        False,
     ),
-    # Day-first numeric, e.g. 12/09/2026 - matches how UK fixture lists
-    # are usually written. There's no way to tell this apart from
-    # month-first input, so that's a documented assumption, not a bug.
-    re.compile(r"(?P<d>\d{1,2})[/.](?P<m>\d{1,2})[/.](?P<y>\d{2,4})"),
+    # Numeric, e.g. 12/09/2026. Day-first by default, matching how UK
+    # fixture lists are usually written; there's no way to tell this
+    # apart from month-first input from the text alone, so callers that
+    # know their source uses month-first dates pass month_first=True.
+    (re.compile(r"(?P<d>\d{1,2})[/.](?P<m>\d{1,2})[/.](?P<y>\d{2,4})"), True),
 ]
 
 _TIME_PATTERN = re.compile(
@@ -87,8 +94,8 @@ def _resolve_year(year: int) -> int:
     return year
 
 
-def _parse_date(text: str) -> date | None:
-    for pattern in _DATE_PATTERNS:
+def _parse_date(text: str, *, month_first: bool = False) -> date | None:
+    for pattern, ambiguous in _DATE_PATTERNS:
         match = pattern.search(text)
         if not match:
             continue
@@ -101,6 +108,8 @@ def _parse_date(text: str) -> date | None:
         else:
             month = int(groups["m"])
         day = int(groups["d"])
+        if ambiguous and month_first:
+            day, month = month, day
         try:
             return date(year, month, day)
         except ValueError:
@@ -133,18 +142,22 @@ def _find_away_team_end(rest: str) -> int | None:
     break_match = _TEAM_BREAK.search(rest)
     if break_match:
         positions.append(break_match.start())
-    for pattern in _DATE_PATTERNS:
+    for pattern, _ambiguous in _DATE_PATTERNS:
         date_match = pattern.search(rest)
         if date_match:
             positions.append(date_match.start())
     return min(positions) if positions else None
 
 
-def parse_fixture(line: str) -> Fixture:
+def parse_fixture(line: str, *, month_first: bool = False) -> Fixture:
     """Parse one messy fixture line into a Fixture.
 
     Raises FixtureFormatError if no team separator can be found or if a
     team name can't be extracted from either side of it.
+
+    Numeric dates like "12/09/2026" are ambiguous between day-first and
+    month-first. Day-first is assumed by default; pass month_first=True
+    for sources (typically US ones) that write the month first.
     """
     line = line.strip()
     if not line:
@@ -168,19 +181,19 @@ def parse_fixture(line: str) -> Fixture:
     return Fixture(
         home=home,
         away=away,
-        kickoff_date=_parse_date(rest),
+        kickoff_date=_parse_date(rest, month_first=month_first),
         kickoff_time=_parse_time(rest),
     )
 
 
-def format_many(lines: list[str]) -> list[Fixture]:
+def format_many(lines: list[str], *, month_first: bool = False) -> list[Fixture]:
     """Parse every line, skipping ones that fail rather than aborting the batch."""
     fixtures = []
     for line in lines:
         if not line.strip():
             continue
         try:
-            fixtures.append(parse_fixture(line))
+            fixtures.append(parse_fixture(line, month_first=month_first))
         except FixtureFormatError:
             continue
     return fixtures

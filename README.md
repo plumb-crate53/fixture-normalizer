@@ -57,8 +57,22 @@ and reporting those to stderr.
 
 Numeric dates are assumed to be day-first, matching how most fixture lists
 outside the US are written. There's no reliable way to tell day-first from
-month-first apart from context, so this is a documented assumption rather
-than something the parser guesses at.
+month-first apart from context, so instead of guessing, `parse_fixture` and
+`format_many` take a `month_first` keyword (default `False`) that you set
+when you know the source writes the month first:
+
+```python
+from fixtures import parse_fixture
+
+f = parse_fixture("Arsenal vs Chelsea, 09/12/2026 3pm", month_first=True)
+print(f.kickoff_date)  # 2026-09-12
+```
+
+The CLI exposes the same thing as `--month-first`:
+
+```
+python -m fixtures.cli --month-first fixtures.txt
+```
 
 ## Running the tests
 
